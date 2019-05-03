@@ -1,0 +1,86 @@
+server {
+    listen       $NGINX_PORT default_server;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+
+    server_name  $NGINX_HOST;
+    root        /var/www;
+
+    location / {
+        
+        root /var/www;
+        index index.php index.html index.htm;
+        proxy_read_timeout 600;
+
+        ## added to remove index.php from url
+        if (!-e $request_filename) { rewrite ^(.+)$ /index.php last; }
+        try_files $uri $uri/ index.php;
+        rewrite ^/(.*)index.php$ /$1 permanent;
+    }
+
+    # pass the PHP scripts to FastCGI server 
+    location ~ \.php$ {
+        root /var/www;
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_index index.php;
+        fastcgi_read_timeout 600;
+        fastcgi_connect_timeout 600;
+        fastcgi_send_timeout 600;
+        fastcgi_pass   fpm:9000;
+        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+        include        fastcgi_params;
+    }
+
+    location ~ .php$ { ## Execute PHP scripts
+        if (!-e $request_filename) { rewrite / /index.php last; } ## Catch 404s that try_files miss
+        expires        off; ## Do not cache dynamic content
+        fastcgi_pass   fpm:9000;
+        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+        fastcgi_param  MAGE_RUN_CODE default; ## Store code is defined in administration > Configuration > Manage Stores
+        fastcgi_param  MAGE_RUN_TYPE store;
+        include        fastcgi_params; ## See /etc/nginx/fastcgi_params
+    }
+
+    ## Static conetnt cache
+    location ~* \.(?:ico|css|js|gif|jpe?g|png)$ {
+        expires 30d;
+    }
+
+    ## These locations would be hidden by .htaccess normally
+    location ^~ /app/                { deny all; }
+    location ^~ /includes/           { deny all; }
+    #location ^~ /lib/                { deny all; }
+    location ^~ /media/downloadable/ { deny all; }
+    location ^~ /pkginfo/            { deny all; }
+    location ^~ /report/config.xml   { deny all; }
+    location ^~ /var/                { deny all; }
+
+    location  /. { ## Disable .htaccess and other hidden files
+        return 404;
+    }
+
+    location @handler { ## Magento uses a common front handler
+        rewrite / /index.php;
+    }
+
+    location ~ .php/ { ## Forward paths like /js/index.php/x.js to relevant handler
+        rewrite ^(.*.php)/ $1 last;
+    }
+
+    ## end magento
+
+    location ~* \.(asf|asx|wax|wmv|wmx|avi|bmp|class|divx|doc|docx|eot|exe|gif|gz|gzip|ico|jpg|jpeg|jpe|mdb|mid|midi|mov|qt|mp3|m4a|mp4|m4v|mpeg|mpg|mpe|mpp|odb|odc|odf|odg|odp|ods|odt|ogg|ogv|otf|pdf|png|pot|pps|ppt|pptx|ra|ram|svg|svgz|swf|tar|t?gz|tif|tiff|ttf|wav|webm|wma|woff|wri|xla|xls|xlsx|xlt|xlw|zip)${
+    {       
+        expires 31536000s;
+        access_log off;
+        log_not_found off;
+        add_header Pragma public;
+        add_header Cache-Control "max-age=31536000, public";
+    }
+
+    location ~* "^.*?\.(eot)|(ttf)|(woff)$" {
+        add_header Access-Control-Allow-Origin *;
+    }
+}
