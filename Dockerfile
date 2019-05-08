@@ -1,4 +1,4 @@
-FROM php:7.1-fpm-alpine3.9
+FROM php:7.2-fpm-alpine3.9
 LABEL maintainer="Martinsl <https://github.com/Martinsl>"
 
 ARG HUID=1000
@@ -19,7 +19,6 @@ RUN apk update && apk add --no-cache \
 	php7-curl \
 	php7-zip \
 	php7-openssl \
-	php7-mcrypt \
         && docker-php-source extract \
 	&& pecl install xdebug \
         && docker-php-ext-enable xdebug \
